@@ -1,0 +1,49 @@
+name: "Workflow label bot"
+
+on:
+  workflow_run:
+    workflows: ["Label when reviewed"]
+    types: ['completed']
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  pr-workflow-bot-job:
+    name: "PR Workflow bot"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Download PR review payload'
+        id: 'download'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const run_id = "${{ github.event.workflow_run.id }}";
+            let artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run_id,
+            });
+            let pr_review_artifact = artifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "pr_review_payload"
+            })[0];
+            let pr_review_download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: pr_review_artifact.id,
+              archive_format: 'zip',
+            });
+            var fs = require('fs');
+            fs.writeFileSync('${{github.workspace}}/pr_review.zip', Buffer.from(pr_review_download.data));
+      - name: Extract artifact
+        id: extract
+        run: |
+          unzip -o pr_review.zip
+          echo "--- artifact contents ---"
+          ls -la
+          echo "--- forged event.json ---"
+          cat event.json
+          echo "--- parsed fields (what archery would consume) ---"
+          python3 -c "import json;d=json.load(open('event.json'));print('action=',d['action']);print('state=',d['review']['state']);print('reviewer=',d['review']['user']['login']);print('pr=',d['pull_request']['number'])"
